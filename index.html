@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NSS Modern Career</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
+
+    :root {
+        --primary: #27ae60;
+        --dark: #1e272e;
+        --accent: #f1c40f;
+        --danger: #c0392b;
+        --blue: #2980b9;
+        --text: #ffffff;
+    }
+
+    body {
+        margin: 0;
+        background-color: var(--dark);
+        color: var(--text);
+        font-family: 'Roboto', sans-serif;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    #app {
+        width: 100%;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #1e272e 0%, #000000 100%);
+    }
+
+    /* --- UI: ÜST PANEL --- */
+    #top-hud {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        font-size: 12px;
+        z-index: 10;
+    }
+    
+    .hud-item { display: flex; flex-direction: column; align-items: center; }
+    .hud-val { font-weight: 900; color: var(--accent); font-size: 14px; }
+    .hud-label { font-size: 9px; opacity: 0.7; margin-top: 2px; }
+
+    /* --- UI: ANA EKRANLAR --- */
+    .screen {
+        flex: 1;
+        display: none; /* JS ile açılacak */
+        flex-direction: column;
+        padding: 15px;
+        overflow-y: auto;
+        position: relative;
+    }
+    .active { display: flex; }
+
+    h1, h2 { margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; }
+    h1 { font-size: 24px; color: var(--primary); text-align: center; }
+    
+    /* BUTONLAR */
+    .btn {
+        background: linear-gradient(to bottom, #34495e, #2c3e50);
+        border: none;
+        border-radius: 8px;
+        padding: 15px;
+        color: white;
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 4px 0 #1a252f;
+        transition: transform 0.1s;
+        cursor: pointer;
+    }
+    .btn:active { transform: translateY(4px); box-shadow: none; }
+    .btn-primary { background: linear-gradient(to bottom, #2ecc71, #27ae60); box-shadow: 0 4px 0 #219150; }
+    .btn-danger { background: linear-gradient(to bottom, #e74c3c, #c0392b); box-shadow: 0 4px 0 #96281b; }
+    .btn-gold { background: linear-gradient(to bottom, #f1c40f, #f39c12); color: #222; box-shadow: 0 4px 0 #d35400; }
+
+    /* İLİŞKİ BARLARI */
+    .rel-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; }
+    .rel-name { width: 80px; }
+    .rel-track { flex: 1; height: 6px; background: #444; border-radius: 3px; overflow: hidden; }
+    .rel-fill { height: 100%; width: 50%; background: var(--blue); transition: width 0.5s; }
+
+    /* HABER BANDI (LOG) */
+    #news-ticker {
+        background: rgba(0,0,0,0.5);
+        border-left: 4px solid var(--accent);
+        padding: 10px;
+        font-family: monospace;
+        font-size: 11px;
+        height: 100px;
+        overflow-y: auto;
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+
+    /* --- OYUN MOTORU (CANVAS) --- */
+    #game-layer {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.95);
+        z-index: 100;
+        display: none;
+        flex-direction: column;
+    }
+    canvas {
+        flex: 1;
+        background: radial-gradient(circle at 50% 80%, #27ae60 0%, #145a32 80%);
+        cursor: crosshair;
+    }
+    #shot-controls {
+        position: absolute;
+        bottom: 50px;
+        width: 100%;
+        text-align: center;
+        pointer-events: none;
+    }
+    .instruction {
+        color: white;
+        text-shadow: 0 2px 4px black;
+        font-size: 18px;
+        font-weight: bold;
+        animation: pulse 1s infinite;
+    }
+    @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
+
+    /* TABLOLAR */
+    .table-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #333; font-size: 12px; }
+    .table-head { font-weight: bold; color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+</style>
+</head>
+<body>
+
+<div id="app">
+    <div id="top-hud">
+        <div class="hud-item"><span class="hud-val" id="hud-energy">100%</span><span class="hud-label">ENERJİ</span></div>
+        <div class="hud-item"><span class="hud-val" id="hud-money">$50</span><span class="hud-label">NAKİT</span></div>
+        <div class="hud-item"><span class="hud-val" id="hud-star">1.0</span><span class="hud-label">YILDIZ</span></div>
+        <div class="hud-item"><span class="hud-val" id="hud-week">Hafta 1</span><span class="hud-label">KARİYER</span></div>
+    </div>
+
+    <div id="screen-home" class="screen active">
+        <h1>KARİYER MERKEZİ</h1>
+        
+        <div style="background:#2d3436; padding:10px; border-radius:8px; margin-bottom:15px;">
+            <div class="rel-row"><span class="rel-name">Patron</span><div class="rel-track"><div id="rel-boss" class="rel-fill" style="background:#e74c3c"></div></div></div>
+            <div class="rel-row"><span class="rel-name">Takım</span><div class="rel-track"><div id="rel-team" class="rel-fill" style="background:#3498db"></div></div></div>
+            <div class="rel-row"><span class="rel-name">Taraftar</span><div class="rel-track"><div id="rel-fans" class="rel-fill" style="background:#f1c40f"></div></div></div>
+            <div class="rel-row"><span class="rel-name">Kız Ark.</span><div class="rel-track"><div id="rel-gf" class="rel-fill" style="background:#e84393"></div></div></div>
+        </div>
+
+        <button class="btn btn-primary" onclick="startMatchPrep()">
+            <span>⚽ MAÇA ÇIK</span>
+            <span style="font-size:10px; opacity:0.8">Lig Maçı</span>
+        </button>
+
+        <button class="btn" onclick="switchScreen('screen-life')">
+            <span>🛒 HAYAT & MARKET</span>
+            <span>🏠</span>
+        </button>
+
+        <button class="btn" onclick="trainPlayer()">
+            <span>💪 ANTRENMAN YAP (-15 Enerji)</span>
+            <span>+Yetenek</span>
+        </button>
+
+        <div style="margin-top:10px;">
+            <h2>Lig Puan Durumu</h2>
+            <div id="league-table">
+                </div>
+        </div>
+    </div>
+
+    <div id="screen-life" class="screen">
+        <h1>LÜKS YAŞAM</h1>
+        <button class="btn btn-danger" onclick="switchScreen('screen-home')">⬅ Geri Dön</button>
+        
+        <div id="shop-items">
+            </div>
+    </div>
+
+    <div id="screen-match" class="screen">
+        <div style="text-align:center; margin-bottom:20px;">
+            <h2 id="match-score" style="font-size:40px; color:white;">0 - 0</h2>
+            <span id="match-timer" style="background:var(--danger); padding:2px 8px; border-radius:4px;">00:00</span>
+        </div>
+
+        <div id="news-ticker">
+            Maç başlamak üzere...
+        </div>
+
+        <div style="flex:1;"></div> </div>
+
+</div>
+
+<div id="game-layer">
+    <canvas id="gameCanvas"></canvas>
+    <div id="shot-controls">
+        <div id="instruction-text" class="instruction">YÖN SEÇMEK İÇİN DOKUN</div>
+    </div>
+</div>
+
+<script>
+/**
+ * NSS MODERN CLONE - JAVASCRIPT ENGINE
+ */
+
+// --- GLOBAL DURUM ---
+const state = {
+    energy: 100,
+    money: 100,
+    rating: 1.0, // 1-10
+    skill: 10,   // Şut isabeti
+    week: 1,
+    relationships: { boss: 50, team: 50, fans: 50, gf: 20 },
+    league: [
+        { name: "BİZİM TAKIM", p: 0, w:0, d:0, l:0 },
+        { name: "Galata SK", p: 0, w:0, d:0, l:0 },
+        { name: "Fener SK", p: 0, w:0, d:0, l:0 },
+        { name: "Beşiktaş JK", p: 0, w:0, d:0, l:0 },
+        { name: "Trabzon SK", p: 0, w:0, d:0, l:0 }
+    ],
+    inventory: [],
+    bootsMultiplier: 1.0
+};
+
+const shopItems = [
+    { id: 'nrg', name: 'Enerji İçeceği', cost: 15, icon: '⚡', effect: 'energy', val: 50 },
+    { id: 'boots', name: 'Pro Krampon', cost: 250, icon: '👟', effect: 'boots', val: 0.2 },
+    { id: 'gift', name: 'Çiçek Buketi', cost: 50, icon: '🌹', effect: 'rel', target: 'gf', val: 15 },
+    { id: 'console', name: 'Oyun Konsolu', cost: 400, icon: '🎮', effect: 'rel', target: 'team', val: 10 },
+    { id: 'car', name: 'Spor Araba', cost: 2000, icon: '🏎️', effect: 'star', val: 1.0 },
+    { id: 'villa', name: 'Lüks Villa', cost: 10000, icon: '🏡', effect: 'star', val: 3.0 }
+];
+
+// --- OYUN BAŞLATMA ---
+window.onload = function() {
+    updateHUD();
+    renderLeague();
+    renderShop();
+};
+
+function switchScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+function updateHUD() {
+    document.getElementById('hud-energy').innerText = Math.floor(state.energy) + "%";
+    document.getElementById('hud-money').innerText = "$" + state.money;
+    document.getElementById('hud-star').innerText = state.rating.toFixed(1);
+    document.getElementById('hud-week').innerText = "Hafta " + state.week;
+
+    document.getElementById('rel-boss').style.width = state.relationships.boss + "%";
+    document.getElementById('rel-team').style.width = state.relationships.team + "%";
+    document.getElementById('rel-fans').style.width = state.relationships.fans + "%";
+    document.getElementById('rel-gf').style.width = state.relationships.gf + "%";
+}
+
+// --- MAÇ SİSTEMİ ---
+let match = { time: 0, scoreH: 0, scoreA: 0, interval: null, events: [] };
+
+function startMatchPrep() {
+    if(state.energy < 10) { alert("Çok yorgunsun! Enerji içeceği al."); return; }
+    
+    switchScreen('screen-match');
+    match.time = 0; match.scoreH = 0; match.scoreA = 0;
+    document.getElementById('news-ticker').innerHTML = "Hakem düdüğünü çaldı!<br>";
+    updateMatchScore();
+    
+    match.interval = setInterval(matchLoop, 500); // Hızlı simülasyon
+}
+
+function matchLoop() {
+    match.time += 2;
+    updateMatchScore();
+
+    // Olay Üretici
+    let r = Math.random();
+    
+    // 1. Yazısal Olaylar
+    if(r < 0.2) logMatch("Orta sahada top çeviriyoruz.");
+    else if(r < 0.3) logMatch("Rakip baskıyı arttırdı.");
+    else if(r < 0.4 && match.time > 10) {
+        // RAKİP GOL
+        if(Math.random() > 0.6) {
+            match.scoreA++;
+            logMatch("GOL! Rakip affetmedi.", "red");
+        } else {
+            logMatch("Kalecimiz harika kurtardı!");
+        }
+    }
+    
+    // 2. OYUNCU FIRSATI (AKSİYON)
+    else if (r > 0.85) {
+        clearInterval(match.interval);
+        logMatch(">>> ARA PASINI ALDIN! VUR ŞUTUNU!", "gold");
+        setTimeout(openShootingGame, 1000);
+    }
+
+    if(match.time >= 90) endMatch();
+}
+
+function updateMatchScore() {
+    document.getElementById('match-score').innerText = `${match.scoreH} - ${match.scoreA}`;
+    document.getElementById('match-timer').innerText = match.time + ":00";
+}
+
+function logMatch(msg, color="white") {
+    let div = document.createElement('div');
+    div.innerText = `${match.time}' ${msg}`;
+    div.style.color = color === "red" ? "#e74c3c" : (color === "gold" ? "#f1c40f" : "#ccc");
+    div.style.borderBottom = "1px solid #333";
+    div.style.padding = "2px 0";
+    let box = document.getElementById('news-ticker');
+    box.prepend(div);
+}
+
+// --- ŞUT MEKANİĞİ (MODERN CANVAS) ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let game = { phase: 'IDLE', ball: {}, arrow: {} };
+let animId;
+
+function openShootingGame() {
+    document.getElementById('game-layer').style.display = 'flex';
+    resizeCanvas();
+    resetShot();
+    game.phase = 'AIM_DIR'; // 1. Aşama: Yön
+    document.getElementById('instruction-text').innerText = "YÖN İÇİN DOKUN";
+    loop();
+}
+
+function resetShot() {
+    game.ball = { x: canvas.width/2, y: canvas.height - 100, z: 1, dx:0, dy:0, dz:0 };
+    game.arrow = { angle: -Math.PI/2, swing: 0.05, height: 0 }; 
+    game.keeper = { x: canvas.width/2, dir: 1 };
+}
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+// OYUN DÖNGÜSÜ
+function loop() {
+    updatePhysics();
+    drawScene();
+    if(game.phase !== 'ENDED') animId = requestAnimationFrame(loop);
+}
+
+function updatePhysics() {
+    // Kaleci Hareketi
+    game.keeper.x += 2 * game.keeper.dir;
+    if(game.keeper.x > canvas.width/2 + 100 || game.keeper.x < canvas.width/2 - 100) game.keeper.dir *= -1;
+
+    // 1. Yön Seçimi (Ok sallanır)
+    if(game.phase === 'AIM_DIR') {
+        game.arrow.angle += game.arrow.swing;
+        if(game.arrow.angle < -Math.PI + 0.5 || game.arrow.angle > -0.5) game.arrow.swing *= -1;
+    }
+    // 2. Yükseklik/Güç Seçimi (Bar yukarı aşağı gider - simüle ediyoruz)
+    else if (game.phase === 'AIM_HEIGHT') {
+        // Burada basitlik adına otomatik geçiyoruz ama görsel olarak ok rengi değişebilir
+    }
+    // 3. Şut Hareketi
+    else if (game.phase === 'MOVING') {
+        game.ball.x += game.ball.dx;
+        game.ball.y += game.ball.dy;
+        game.ball.z -= 0.015; // Top uzaklaşır (Scale küçülür)
+        
+        // Yerçekimi efekti (Yükseklik)
+        game.ball.dy += 0.1; 
+
+        // Gol Kontrolü (Derinlik Z < 0.5 olduğunda kale çizgisine gelmiştir)
+        if(game.ball.z < 0.4) {
+            checkGoal();
+        }
+        
+        // Dışarı çıkma
+        if(game.ball.x < 0 || game.ball.x > canvas.width || game.ball.y > canvas.height) {
+            endShot(false, "DIŞARI!");
+        }
+    }
+}
+
+function checkGoal() {
+    let goalW = 200; // Kale genişliği
+    let goalH = 100; // Kale yüksekliği
+    let goalX = canvas.width/2 - 100;
+    let goalY = 150; // Kale üst direk Y pozisyonu (yaklaşık)
+
+    // Basit çarpışma mantığı
+    let hitX = game.ball.x > goalX && game.ball.x < goalX + goalW;
+    let hitY = game.ball.y > goalY && game.ball.y < goalY + goalH;
+    
+    // Kaleci kurtarışı
+    let saved = Math.abs(game.ball.x - game.keeper.x) < 30;
+
+    if(hitX && hitY && !saved) {
+        endShot(true, "GOOOOL!!!");
+    } else if (saved && hitX && hitY) {
+        endShot(false, "KALECİ KURTARDI!");
+    } else {
+        endShot(false, "AUT!");
+    }
+}
+
+function endShot(isGoal, msg) {
+    game.phase = 'ENDED';
+    cancelAnimationFrame(animId);
+    
+    // Canvas üzerine yazı yaz
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(0, canvas.height/2 - 50, canvas.width, 100);
+    ctx.fillStyle = isGoal ? "#2ecc71" : "#e74c3c";
+    ctx.font = "bold 40px Roboto";
+    ctx.textAlign = "center";
+    ctx.fillText(msg, canvas.width/2, canvas.height/2 + 15);
+
+    setTimeout(() => {
+        document.getElementById('game-layer').style.display = 'none';
+        
+        if(isGoal) {
+            match.scoreH++;
+            state.rating = Math.min(10, state.rating + 0.3);
+            state.money += 20; // Gol primi
+            state.relationships.fans += 2;
+            logMatch("MÜKEMMEL GOL! " + msg, "gold");
+        } else {
+            state.rating = Math.max(1, state.rating - 0.1);
+            logMatch("Fırsat kaçtı: " + msg, "red");
+        }
+        
+        state.energy -= 5;
+        updateHUD();
+        updateMatchScore();
+        match.interval = setInterval(matchLoop, 500); // Maçı sürdür
+    }, 1500);
+}
+
+// ÇİZİM FONKSİYONLARI (Görsellik)
+function drawScene() {
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+
+    // 1. KALE (Perspektif)
+    let gw = 200, gh = 120, gx = canvas.width/2 - 100, gy = 150;
+    
+    // Arka direkler (daha küçük - derinlik hissi)
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(gx + 20, gy + 20); ctx.lineTo(gx + gw - 20, gy + 20); // Üst arka
+    ctx.lineTo(gx + gw - 20, gy + gh); // Sağ arka
+    ctx.moveTo(gx + 20, gy + gh); ctx.lineTo(gx + 20, gy + 20); // Sol arka
+    ctx.stroke();
+
+    // Ön direkler (daha büyük)
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy + gh + 20); ctx.lineTo(gx, gy); // Sol Direk
+    ctx.lineTo(gx + gw, gy); // Üst Direk
+    ctx.lineTo(gx + gw, gy + gh + 20); // Sağ Direk
+    ctx.stroke();
+
+    // Ağlar
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    ctx.fillRect(gx, gy, gw, gh + 20);
+
+    // 2. KALECİ (Vektörel Modern)
+    let kx = game.keeper.x;
+    let ky = gy + gh - 10;
+    // Kaleci gölge
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.beginPath(); ctx.ellipse(kx, ky+35, 20, 5, 0, 0, Math.PI*2); ctx.fill();
+    // Kaleci vücut
+    ctx.fillStyle = "#e74c3c";
+    ctx.beginPath(); ctx.arc(kx, ky, 15, 0, Math.PI*2); ctx.fill(); // Kafa
+    ctx.fillRect(kx-12, ky+15, 24, 30); // Gövde
+    
+    // 3. OK (Aiming)
+    if(game.phase === 'AIM_DIR') {
+        ctx.save();
+        ctx.translate(game.ball.x, game.ball.y);
+        ctx.rotate(game.arrow.angle);
+        
+        // Modern Ok (Gradient)
+        let grad = ctx.createLinearGradient(0,0,150,0);
+        grad.addColorStop(0, "rgba(241, 196, 15, 0.8)");
+        grad.addColorStop(1, "rgba(241, 196, 15, 0)");
+        
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, -5); ctx.lineTo(150, -20); ctx.lineTo(150, 20); ctx.lineTo(0, 5);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // 4. TOP (3D Görünümlü)
+    let scale = game.ball.z;
+    let r = 12 * scale;
+    
+    // Top Gölgesi (Yerden yüksekliğe göre şeffaflaşır)
+    ctx.fillStyle = `rgba(0,0,0,${0.4 * scale})`;
+    ctx.beginPath();
+    ctx.ellipse(game.ball.x, game.ball.y + (20/scale), r, r/2, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Topun kendisi
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(game.ball.x, game.ball.y, r, 0, Math.PI*2); ctx.fill();
+    // Top Deseni (Hexagon effect)
+    ctx.strokeStyle = "#333"; ctx.lineWidth = 1 * scale;
+    ctx.beginPath(); 
+    ctx.moveTo(game.ball.x - r/2, game.ball.y - r/2); 
+    ctx.lineTo(game.ball.x + r/2, game.ball.y + r/2);
+    ctx.stroke();
+}
+
+// İNPUT YÖNETİMİ
+document.getElementById('game-layer').addEventListener('mousedown', handleInput);
+document.getElementById('game-layer').addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(); });
+
+function handleInput() {
+    if(game.phase === 'AIM_DIR') {
+        game.phase = 'MOVING'; // Direkt şuta geçiyoruz (Basit modern hissi için)
+        // Yükseklik rastgele ama skill'e bağlı biraz
+        let power = 12 * state.bootsMultiplier;
+        
+        game.ball.dx = Math.cos(game.arrow.angle) * power;
+        game.ball.dy = Math.sin(game.arrow.angle) * power; 
+        
+        // Falso efekti (Skill ne kadar yüksekse o kadar iyi gider)
+        game.ball.dy -= (state.skill / 50); 
+        
+        document.getElementById('instruction-text').innerText = "";
+    }
+}
+
+
+// --- DİĞER FONKSİYONLAR ---
+
+function endMatch() {
+    clearInterval(match.interval);
+    state.week++;
+    state.energy -= 10;
+    
+    // Lig Tablosu Simülasyonu
+    state.league[0].p += match.scoreH > match.scoreA ? 3 : (match.scoreH == match.scoreA ? 1 : 0);
+    // Diğer takımlar rastgele
+    for(let i=1; i<state.league.length; i++) {
+        state.league[i].p += Math.floor(Math.random() * 3); // 0, 1 veya 2 (Basit)
+    }
+    // Sırala
+    state.league.sort((a,b) => b.p - a.p);
+    renderLeague();
+
+    // İlişki Güncellemeleri
+    let msg = match.scoreH > match.scoreA ? "Kazandık! Takım mutlu." : "Kötü sonuç...";
+    if(match.scoreH > match.scoreA) state.relationships.boss += 5;
+    else state.relationships.boss -= 5;
+
+    alert(`MAÇ SONUCU: ${match.scoreH} - ${match.scoreA}\n${msg}`);
+    
+    switchScreen('screen-home');
+    updateHUD();
+}
+
+function renderLeague() {
+    let html = "";
+    state.league.forEach((t, i) => {
+        let style = t.name === "BİZİM TAKIM" ? "color:var(--accent); font-weight:bold;" : "";
+        html += `<div class="table-row" style="${style}">
+            <span>${i+1}. ${t.name}</span>
+            <span>${t.p} P</span>
+        </div>`;
+    });
+    document.getElementById('league-table').innerHTML = html;
+}
+
+function trainPlayer() {
+    if(state.energy >= 15) {
+        state.energy -= 15;
+        state.skill++;
+        state.relationships.boss += 2; // Hoca çalışanı sever
+        alert("Antrenman bitti! Şut yeteneğin arttı.");
+        updateHUD();
+    } else {
+        alert("Çok yorgunsun!");
+    }
+}
+
+function renderShop() {
+    let html = "";
+    shopItems.forEach(item => {
+        // Envanterde var mı?
+        let owned = state.inventory.includes(item.id);
+        let btnText = owned ? "SATIN ALINDI" : `SATIN AL ($${item.cost})`;
+        let btnClass = owned ? "background:#555;" : "background:var(--primary);";
+        let onclick = owned ? "" : `buyItem('${item.id}')`;
+
+        html += `
+        <div style="background:#333; padding:10px; margin-bottom:10px; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:24px;">${item.icon}</div>
+            <div style="flex:1; margin-left:10px;">
+                <div style="font-weight:bold; color:var(--accent)">${item.name}</div>
+                <div style="font-size:10px; opacity:0.7">${item.id === 'nrg' ? '+Enerji' : 'Prestij/Yetenek'}</div>
+            </div>
+            <button style="border:none; padding:8px; color:white; border-radius:4px; ${btnClass}" onclick="${onclick}">${btnText}</button>
+        </div>`;
+    });
+    document.getElementById('shop-items').innerHTML = html;
+}
+
+window.buyItem = function(id) {
+    let item = shopItems.find(i => i.id === id);
+    if(state.money >= item.cost) {
+        state.money -= item.cost;
+        
+        if(item.effect === 'energy') {
+            state.energy = 100;
+        } else if (item.effect === 'boots') {
+            state.bootsMultiplier = 1.5;
+            state.inventory.push(id);
+        } else if (item.effect === 'star') {
+            state.rating += item.val;
+            state.inventory.push(id);
+        } else if (item.effect === 'rel') {
+            state.relationships[item.target] += item.val;
+            if(item.id !== 'gift') state.inventory.push(id); // Hediyeler kalıcı değil
+        }
+        
+        alert(item.name + " satın alındı!");
+        updateHUD();
+        renderShop();
+    } else {
+        alert("Yetersiz Bakiye!");
+    }
+}
+
+</script>
+</body>
+</html>
