@@ -1,39 +1,371 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>NSS Web Clone (Full)</title>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto:wght@700&display=swap" rel="stylesheet">
-<style>
-    :root {
-        --green: #27ae60;
-        --dark-green: #145a32;
-        --red: #c0392b;
-        --yellow: #f1c40f;
-        --dark: #2c3e50;
-        --light: #ecf0f1;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NSS Web Mobile</title>
+    <style>
+        /* --- STİL AYARLARI --- */
+        body {
+            margin: 0;
+            background-color: #121212;
+            font-family: 'Courier New', monospace;
+            color: white;
+            overflow: hidden; /* Kaydırmayı engelle */
+            touch-action: none; /* Mobilde dokunmatik sorunlarını çöz */
+        }
 
-    * { box-sizing: border-box; }
+        #app {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
 
-    body {
-        margin: 0;
-        background-color: #202020;
-        font-family: 'Press Start 2P', cursive; /* Retro Font */
-        color: white;
-        overflow: hidden;
-        touch-action: none;
-    }
+        /* Üst Panel */
+        #hud {
+            background: #1e1e1e;
+            padding: 10px;
+            border-bottom: 2px solid #333;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .stat { color: #f1c40f; }
 
-    #app-container {
-        width: 100%;
-        height: 100vh;
-        max-width: 500px; /* Tablet/Mobil boyutu sınırı */
-        margin: 0 auto;
-        background: #1a1a1a;
-        position: relative;
-        display: flex;
+        /* Sayfalar */
+        .screen {
+            flex: 1;
+            display: none; /* Varsayılan gizli */
+            flex-direction: column;
+            padding: 20px;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .active { display: flex; } /* Aktif olan görünür */
+
+        /* Butonlar */
+        button {
+            background: #c0392b;
+            color: white;
+            border: 2px solid #fff;
+            padding: 15px 30px;
+            font-size: 16px;
+            margin: 10px;
+            cursor: pointer;
+            width: 80%;
+            max-width: 300px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        button:active { transform: scale(0.95); }
+        .btn-green { background: #27ae60; }
+        .btn-blue { background: #2980b9; }
+
+        /* Maç Ekranı */
+        #match-log {
+            width: 90%;
+            height: 200px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #555;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            text-align: left;
+            font-size: 12px;
+        }
+        #score-board { font-size: 30px; margin-bottom: 20px; letter-spacing: 5px; }
+
+        /* Oyun Canvas (Şut Ekranı) */
+        #game-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 99;
+            display: none;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        #instruction {
+            position: absolute;
+            bottom: 20%;
+            width: 100%;
+            text-align: center;
+            color: yellow;
+            font-size: 18px;
+            pointer-events: none;
+            text-shadow: 2px 2px black;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse { 0% {opacity: 0.5;} 50% {opacity: 1;} 100% {opacity: 0.5;} }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="hud">
+        <span>NRJ: <span id="val-nrg" class="stat">100</span></span>
+        <span>$ <span id="val-money" class="stat">50</span></span>
+        <span>Hafta: <span id="val-week">1</span></span>
+    </div>
+
+    <div id="screen-menu" class="screen active">
+        <h1 style="color:#27ae60; text-shadow: 2px 2px #000;">NSS MOBİL</h1>
+        <p style="font-size:10px; color:#aaa;">Github Edition</p>
+        <br>
+        <button class="btn-green" onclick="Game.startMatch()">⚽ MAÇA ÇIK</button>
+        <button class="btn-blue" onclick="Game.buyEnergy()">⚡ ENERJİ AL ($20)</button>
+        <button onclick="alert('Kramponlar tükendi!')">🛒 MARKET</button>
+    </div>
+
+    <div id="screen-match" class="screen">
+        <div id="score-board">0 - 0</div>
+        <div id="match-log">Maç başlıyor...</div>
+        <div id="timer" style="color:yellow;">00:00</div>
+    </div>
+</div>
+
+<div id="game-layer">
+    <canvas id="gameCanvas"></canvas>
+    <div id="instruction">VURMAK İÇİN KAYDIR! 👆</div>
+</div>
+
+<script>
+    /* --- OYUN MANTIĞI --- */
+    const Game = {
+        state: { money: 50, energy: 100, week: 1, score: {h:0, a:0} },
+        matchTimer: 0,
+        matchInterval: null,
+
+        // Ekran Değiştirme
+        showScreen: (id) => {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        },
+
+        updateHUD: () => {
+            document.getElementById('val-money').innerText = Game.state.money;
+            document.getElementById('val-nrg').innerText = Game.state.energy;
+            document.getElementById('val-week').innerText = Game.state.week;
+        },
+
+        buyEnergy: () => {
+            if(Game.state.money >= 20) {
+                Game.state.money -= 20;
+                Game.state.energy = 100;
+                Game.updateHUD();
+                alert("Enerji doldu!");
+            } else { alert("Para yetmiyor!"); }
+        },
+
+        // Maç Başlatma
+        startMatch: () => {
+            if(Game.state.energy < 10) { alert("Çok yorgunsun!"); return; }
+            Game.showScreen('screen-match');
+            Game.state.score = {h:0, a:0};
+            Game.matchTimer = 0;
+            document.getElementById('match-log').innerHTML = "Hakem düdüğü çaldı.<br>";
+            document.getElementById('score-board').innerText = "0 - 0";
+            
+            Game.matchInterval = setInterval(Game.loop, 1000);
+        },
+
+        // Maç Döngüsü
+        loop: () => {
+            Game.matchTimer += 2;
+            document.getElementById('timer').innerText = Game.matchTimer + ":00";
+
+            // Rastgele Olaylar
+            let r = Math.random();
+            if(r < 0.3) Game.log("Top orta sahada.");
+            else if(r < 0.4) Game.log("Rakip tehlikeli geliyor!");
+            
+            // %20 Gol Şansı (Bizim için) -> Şut Oyunu
+            if(r > 0.8 && Game.matchTimer < 88) {
+                clearInterval(Game.matchInterval);
+                Game.log(">>> FIRSAT YAKALADIN! VUR!", "yellow");
+                setTimeout(Shooter.start, 1000);
+            }
+
+            // Maç Bitişi
+            if(Game.matchTimer >= 90) Game.endMatch();
+        },
+
+        log: (msg, color='white') => {
+            let logBox = document.getElementById('match-log');
+            logBox.innerHTML = `<span style="color:${color}">${Game.matchTimer}' ${msg}</span><br>` + logBox.innerHTML;
+        },
+
+        endMatch: () => {
+            clearInterval(Game.matchInterval);
+            Game.state.week++;
+            Game.state.energy -= 15;
+            
+            let prize = Game.state.score.h > Game.state.score.a ? 30 : 10;
+            Game.state.money += prize;
+            
+            alert(`MAÇ BİTTİ!\nSkor: ${Game.state.score.h} - ${Game.state.score.a}\nKazanılan: $${prize}`);
+            Game.updateHUD();
+            Game.showScreen('screen-menu');
+        }
+    };
+
+    /* --- ŞUT MOTORU (CANVAS) --- */
+    const Shooter = {
+        canvas: document.getElementById('gameCanvas'),
+        ctx: document.getElementById('gameCanvas').getContext('2d'),
+        active: false,
+        ball: {x:0, y:0, z:0, vx:0, vy:0, vz:0},
+        touchStart: {x:0, y:0},
+        
+        start: () => {
+            document.getElementById('game-layer').style.display = 'block';
+            Shooter.resize();
+            Shooter.resetBall();
+            Shooter.active = true;
+            Shooter.loop();
+        },
+
+        stop: (isGoal) => {
+            Shooter.active = false;
+            document.getElementById('instruction').innerText = isGoal ? "GOOOOOOL!" : "DIŞARI!";
+            document.getElementById('instruction').style.color = isGoal ? "#2ecc71" : "#e74c3c";
+            
+            setTimeout(() => {
+                document.getElementById('game-layer').style.display = 'none';
+                document.getElementById('instruction').innerText = "VURMAK İÇİN KAYDIR! 👆";
+                document.getElementById('instruction').style.color = "yellow";
+                
+                if(isGoal) {
+                    Game.state.score.h++;
+                    Game.log("MUHTEŞEM BİR GOL!", "#2ecc71");
+                    document.getElementById('score-board').innerText = `${Game.state.score.h} - ${Game.state.score.a}`;
+                } else {
+                    Game.log("Fırsat kaçtı...", "#e74c3c");
+                }
+                
+                // Maça devam et
+                Game.matchInterval = setInterval(Game.loop, 1000);
+            }, 1500);
+        },
+
+        resetBall: () => {
+            Shooter.ball = { x: Shooter.canvas.width/2, y: Shooter.canvas.height - 100, z:0, vx:0, vy:0, vz:0 };
+        },
+
+        resize: () => {
+            Shooter.canvas.width = window.innerWidth;
+            Shooter.canvas.height = window.innerHeight;
+        },
+
+        loop: () => {
+            if(!Shooter.active) return;
+            
+            let W = Shooter.canvas.width;
+            let H = Shooter.canvas.height;
+            let ctx = Shooter.ctx;
+            
+            // Temizle
+            ctx.fillStyle = "#1e8449"; // Çim rengi
+            ctx.fillRect(0,0,W,H);
+
+            // KALE ÇİZİMİ
+            let gw = W * 0.6; // Kale genişliği
+            let gh = 150;     // Kale yüksekliği
+            let gx = (W - gw) / 2;
+            let gy = 100;
+
+            // Kale Direkleri
+            ctx.strokeStyle = "white"; ctx.lineWidth = 5;
+            ctx.strokeRect(gx, gy, gw, gh);
+            
+            // Ağlar
+            ctx.fillStyle = "rgba(255,255,255,0.2)";
+            ctx.fillRect(gx, gy, gw, gh);
+
+            // Kaleci (Basit Kırmızı Kare)
+            let kx = (W/2) + Math.sin(Date.now()/500) * (gw/3);
+            ctx.fillStyle = "red";
+            ctx.fillRect(kx - 25, gy + gh - 60, 50, 60);
+
+            // TOP FİZİĞİ
+            let b = Shooter.ball;
+            if(b.vz > 0) { // Top hareket halindeyse
+                b.x += b.vx;
+                b.y += b.vy;
+                b.z += b.vz;
+                b.vy += 0.5; // Yerçekimi
+
+                // Top küçülme efekti (Derinlik)
+                let scale = Math.max(0.1, 1 - (b.z / 1000));
+                
+                // GOL KONTROLÜ
+                if(b.z > 100 && scale < 0.6) {
+                    let inGoalX = b.x > gx && b.x < gx + gw;
+                    let inGoalY = b.y > gy && b.y < gy + gh;
+                    let hitKeeper = Math.abs(b.x - kx) < 40;
+
+                    if(inGoalX && inGoalY && !hitKeeper) Shooter.stop(true);
+                    else if (hitKeeper) Shooter.stop(false); // Kaleci tuttu
+                    else Shooter.stop(false); // Dışarı
+                    return; 
+                }
+                
+                // Ekranda çizim
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 15 * scale, 0, Math.PI*2);
+                ctx.fillStyle = "white";
+                ctx.fill();
+                ctx.strokeStyle = "black";
+                ctx.stroke();
+
+            } else {
+                // Top duruyorsa
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 15, 0, Math.PI*2);
+                ctx.fillStyle = "white";
+                ctx.fill();
+                ctx.strokeStyle = "black";
+                ctx.stroke();
+            }
+
+            requestAnimationFrame(Shooter.loop);
+        }
+    };
+
+    /* --- DOKUNMATİK KONTROLLERİ --- */
+    const layer = document.getElementById('game-layer');
+    
+    layer.addEventListener('touchstart', (e) => {
+        Shooter.touchStart.x = e.touches[0].clientX;
+        Shooter.touchStart.y = e.touches[0].clientY;
+    });
+
+    layer.addEventListener('touchend', (e) => {
+        if(Shooter.ball.vz > 0) return; // Top zaten gidiyorsa vurma
+
+        let dx = e.changedTouches[0].clientX - Shooter.touchStart.x;
+        let dy = e.changedTouches[0].clientY - Shooter.touchStart.y;
+
+        // Sadece yukarı doğru sürüklenirse vur
+        if(dy < -50) {
+            Shooter.ball.vx = dx * 0.15;
+            Shooter.ball.vy = dy * 0.2;
+            Shooter.ball.vz = 20; // İleri hız
+        }
+    });
+
+    window.addEventListener('resize', Shooter.resize);
+    Game.updateHUD(); // Başlangıç
+</script>
+</body>
+</html>
         flex-direction: column;
         border-left: 2px solid #333;
         border-right: 2px solid #333;
