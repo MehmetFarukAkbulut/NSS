@@ -3,37 +3,581 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>NSS Pro 3D</title>
+<title>NSS Web Clone (Full)</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto:wght@700&display=swap" rel="stylesheet">
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap');
+    :root {
+        --green: #27ae60;
+        --dark-green: #145a32;
+        --red: #c0392b;
+        --yellow: #f1c40f;
+        --dark: #2c3e50;
+        --light: #ecf0f1;
+    }
+
+    * { box-sizing: border-box; }
 
     body {
         margin: 0;
-        background: #000;
+        background-color: #202020;
+        font-family: 'Press Start 2P', cursive; /* Retro Font */
+        color: white;
         overflow: hidden;
-        font-family: 'Oswald', sans-serif;
-        touch-action: none; /* Mobilde scrollu engelle */
+        touch-action: none;
     }
 
-    #game-container {
-        position: relative;
-        width: 100vw;
-        height: 100vh;
-        background: radial-gradient(circle at center top, #1e3c72, #2a5298, #000);
-    }
-
-    canvas {
-        display: block;
+    #app-container {
         width: 100%;
-        height: 100%;
+        height: 100vh;
+        max-width: 500px; /* Tablet/Mobil boyutu sınırı */
+        margin: 0 auto;
+        background: #1a1a1a;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        border-left: 2px solid #333;
+        border-right: 2px solid #333;
     }
 
-    /* UI KATMANI */
-    #ui-layer {
+    /* --- ÜST PANEL (HUD) --- */
+    #hud {
+        background: #111;
+        padding: 10px;
+        border-bottom: 2px solid white;
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+    }
+    .hud-box { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .bar-cont { width: 60px; height: 10px; background: #333; border: 1px solid white; }
+    .bar-fill { height: 100%; width: 100%; transition: width 0.3s; }
+    #bar-nrg { background: #e74c3c; } /* Kırmızı enerji barı NSS stili */
+    #val-money { color: var(--yellow); }
+
+    /* --- EKRANLAR GENEL --- */
+    .screen {
+        flex: 1;
+        display: none;
+        flex-direction: column;
+        padding: 15px;
+        overflow-y: auto;
+    }
+    .active { display: flex; }
+
+    h1 { color: var(--yellow); font-size: 18px; text-align: center; margin-bottom: 20px; text-shadow: 2px 2px 0 #000; }
+    
+    /* BUTONLAR */
+    .nss-btn {
+        background: var(--red);
+        border: 2px solid white;
+        color: white;
+        padding: 15px;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 12px;
+        margin-bottom: 15px;
+        cursor: pointer;
+        box-shadow: 4px 4px 0 #550000;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .nss-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #550000; }
+    .btn-green { background: var(--green); box-shadow: 4px 4px 0 var(--dark-green); }
+    .btn-green:active { box-shadow: 2px 2px 0 var(--dark-green); }
+
+    /* --- MENÜ (KARİYER) --- */
+    .rel-box { background: #333; padding: 10px; margin-bottom: 15px; border: 1px solid #555; }
+    .rel-row { display: flex; align-items: center; margin-bottom: 5px; font-size: 8px; }
+    .rel-name { width: 70px; }
+    .rel-track { flex: 1; height: 6px; background: #000; }
+    .rel-val { height: 100%; background: var(--green); }
+
+    /* --- MARKET --- */
+    .item-row { 
+        background: #222; border: 1px solid #444; padding: 10px; margin-bottom: 10px; 
+        display: flex; justify-content: space-between; align-items: center; 
+    }
+
+    /* --- MAÇ MOTORU (TEXT) --- */
+    #match-log {
+        flex: 1;
+        background: rgba(0,0,0,0.3);
+        border: 2px solid #555;
+        padding: 10px;
+        font-family: 'Roboto', sans-serif; /* Okunabilirlik için */
+        font-size: 14px;
+        line-height: 1.5;
+        overflow-y: auto;
+        margin-bottom: 10px;
+    }
+    .log-event { margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+    .log-goal { color: var(--green); font-weight: bold; }
+    .log-danger { color: var(--red); }
+    
+    #scoreboard {
+        background: black; padding: 15px; text-align: center; border: 2px solid white; margin-bottom: 10px;
+        font-size: 20px; color: var(--yellow);
+    }
+
+    /* --- 3D ŞUT EKRANI (CANVAS) --- */
+    #game-layer {
         position: absolute;
         top: 0; left: 0; width: 100%; height: 100%;
-        pointer-events: none;
-        display: flex;
+        background: rgba(0,0,0,0.9);
+        z-index: 999;
+        display: none;
+        flex-direction: column;
+    }
+    canvas { width: 100%; height: 100%; background: radial-gradient(#2E8B57, #113322); cursor: crosshair; }
+    
+    #shoot-msg {
+        position: absolute; bottom: 50px; width: 100%; text-align: center;
+        color: white; font-size: 14px; animation: blink 1s infinite; pointer-events: none;
+    }
+    @keyframes blink { 50% { opacity: 0.5; } }
+
+</style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="hud">
+        <div class="hud-box">
+            <span>ENERJİ</span>
+            <div class="bar-cont"><div id="bar-nrg" class="bar-fill" style="width: 100%;"></div></div>
+        </div>
+        <div class="hud-box">
+            <span>YILDIZ</span>
+            <span style="color:yellow">★ <span id="val-star">1.0</span></span>
+        </div>
+        <div class="hud-box">
+            <span>PARA</span>
+            <span id="val-money">$50</span>
+        </div>
+    </div>
+
+    <div id="screen-menu" class="screen active">
+        <h1>KARİYER</h1>
+        
+        <div class="rel-box">
+            <div class="rel-row"><span class="rel-name">PATRON</span><div class="rel-track"><div id="rel-boss" class="rel-val" style="width:50%"></div></div></div>
+            <div class="rel-row"><span class="rel-name">TAKIM</span><div class="rel-track"><div id="rel-team" class="rel-val" style="width:50%"></div></div></div>
+            <div class="rel-row"><span class="rel-name">TARAFTAR</span><div class="rel-track"><div id="rel-fans" class="rel-val" style="width:50%"></div></div></div>
+        </div>
+
+        <button class="nss-btn btn-green" onclick="startMatch()">
+            <span>MAÇA ÇIK</span> <span>⚽</span>
+        </button>
+
+        <button class="nss-btn" onclick="showScreen('screen-shop')">
+            <span>MARKET / EŞYA</span> <span>🛒</span>
+        </button>
+        
+        <button class="nss-btn" onclick="showScreen('screen-league')">
+            <span>LİG TABLOSU</span> <span>🏆</span>
+        </button>
+
+        <div style="text-align:center; font-size:10px; color:#666; margin-top:20px;">
+            Hafta: <span id="val-week">1</span>
+        </div>
+    </div>
+
+    <div id="screen-shop" class="screen">
+        <h1>MARKET</h1>
+        <div class="item-row">
+            <div>
+                <div style="color:var(--yellow)">NRG İÇECEĞİ</div>
+                <div style="font-size:10px; color:#aaa">+100 Enerji</div>
+            </div>
+            <button class="nss-btn" style="margin:0; padding:10px;" onclick="buyItem('nrg')">$15</button>
+        </div>
+        <div class="item-row">
+            <div>
+                <div style="color:var(--yellow)">ALTIN KRAMPON</div>
+                <div style="font-size:10px; color:#aaa">Daha sert şutlar</div>
+            </div>
+            <button class="nss-btn" style="margin:0; padding:10px;" onclick="buyItem('boots')">$150</button>
+        </div>
+        <button class="nss-btn" onclick="showScreen('screen-menu')">GERİ DÖN</button>
+    </div>
+
+    <div id="screen-league" class="screen">
+        <h1>LİG PUAN DURUMU</h1>
+        <table style="width:100%; font-size:10px; border-collapse: collapse;">
+            <thead><tr style="color:var(--yellow); text-align:left;"><th>TAKIM</th><th>P</th><th>AV</th></tr></thead>
+            <tbody id="league-body">
+                </tbody>
+        </table>
+        <br>
+        <button class="nss-btn" onclick="showScreen('screen-menu')">GERİ DÖN</button>
+    </div>
+
+    <div id="screen-match" class="screen">
+        <div id="scoreboard">
+            <span id="score-home">0</span> - <span id="score-away">0</span>
+            <div style="font-size:12px; margin-top:5px; color:#888;" id="match-time">00:00</div>
+        </div>
+        <div id="match-log"></div>
+    </div>
+
+    <div id="game-layer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="shoot-msg">HEDEF ALMAK İÇİN KAYDIR!</div>
+    </div>
+
+</div>
+
+<script>
+    /**
+     * NSS FULL WEB CLONE
+     * Mantık: Veri Yönetimi -> Simülasyon -> 3D Şut Motoru
+     */
+
+    // --- 1. OYUN VERİLERİ (Global State) ---
+    const Game = {
+        week: 1,
+        money: 50,
+        energy: 100,
+        star: 1.0, // Oyuncu reytingi
+        bootsLevel: 1.0, // Şut gücü çarpanı
+        rels: { boss: 50, team: 50, fans: 50 },
+        league: [
+            { name: "BİZİM TAKIM", p: 0, w:0, d:0, l:0 },
+            { name: "Galata SK", p: 0, w:0, d:0, l:0 },
+            { name: "Fener SK", p: 0, w:0, d:0, l:0 },
+            { name: "Beşiktaş JK", p: 0, w:0, d:0, l:0 },
+            { name: "Trabzon SK", p: 0, w:0, d:0, l:0 }
+        ]
+    };
+
+    const Match = {
+        timer: 0,
+        score: { h:0, a:0 },
+        interval: null,
+        active: false
+    };
+
+    // --- 2. ARAYÜZ YÖNETİMİ ---
+    function updateUI() {
+        document.getElementById('val-money').innerText = "$" + Game.money;
+        document.getElementById('val-star').innerText = Game.star.toFixed(1);
+        document.getElementById('val-week').innerText = Game.week;
+        
+        let nrgBar = document.getElementById('bar-nrg');
+        nrgBar.style.width = Game.energy + "%";
+        nrgBar.style.backgroundColor = Game.energy > 50 ? "#27ae60" : (Game.energy > 20 ? "#f1c40f" : "#c0392b");
+
+        document.getElementById('rel-boss').style.width = Game.rels.boss + "%";
+        document.getElementById('rel-team').style.width = Game.rels.team + "%";
+        document.getElementById('rel-fans').style.width = Game.rels.fans + "%";
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if(id === 'screen-league') renderLeague();
+    }
+
+    function renderLeague() {
+        // Puan durumuna göre sırala
+        Game.league.sort((a,b) => b.p - a.p);
+        let html = "";
+        Game.league.forEach((t, i) => {
+            let color = t.name === "BİZİM TAKIM" ? "color:#27ae60" : "color:white";
+            html += `<tr style="${color}; height:25px; border-bottom:1px solid #333;">
+                <td>${i+1}. ${t.name}</td><td>${t.p}</td><td>0</td></tr>`;
+        });
+        document.getElementById('league-body').innerHTML = html;
+    }
+
+    function buyItem(type) {
+        if(type === 'nrg') {
+            if(Game.money >= 15) {
+                Game.money -= 15; Game.energy = 100;
+                alert("Enerji doldu!");
+            } else alert("Yetersiz bakiye!");
+        } else if (type === 'boots') {
+            if(Game.money >= 150) {
+                Game.money -= 150; Game.bootsLevel = 1.5;
+                alert("Altın kramponlar alındı! Şutların artık çok daha sert.");
+            } else alert("Para yetmiyor!");
+        }
+        updateUI();
+    }
+
+    // --- 3. MAÇ SİMÜLASYONU ---
+    function startMatch() {
+        if(Game.energy < 10) { alert("Çok yorgunsun! Enerji içeceği al."); return; }
+        
+        showScreen('screen-match');
+        Match.timer = 0; Match.score = {h:0, a:0};
+        document.getElementById('match-log').innerHTML = "<div class='log-event'>Hakem düdüğünü çaldı!</div>";
+        updateScoreboard();
+        
+        Match.interval = setInterval(matchLoop, 800);
+    }
+
+    function matchLoop() {
+        Match.timer += 2;
+        updateScoreboard();
+
+        // Rastgele Olaylar
+        let r = Math.random();
+        
+        // %10 İhtimalle Rakip Golü
+        if(r < 0.10 && Match.timer > 5) {
+            Match.score.a++;
+            addLog("Rakip takım golü buldu!", "log-danger");
+        } 
+        // %15 İhtimalle BİZİM FIRSATIMIZ (Oyun Modu)
+        else if (r > 0.85 && Match.timer < 88) {
+            clearInterval(Match.interval);
+            addLog(">>> TOP ÖNÜNDE KALDI! VUR!", "log-goal");
+            setTimeout(open3DGame, 1000);
+        }
+        // Sıradan yorum
+        else if (r < 0.4) {
+            const msgs = ["Orta sahada paslaşıyoruz.", "Taraftar desteği muazzam.", "Sert bir müdahale oldu.", "Teknik direktör taktik veriyor."];
+            addLog(msgs[Math.floor(Math.random() * msgs.length)]);
+        }
+
+        if(Match.timer >= 90) endMatch();
+    }
+
+    function addLog(msg, cls="") {
+        let div = document.createElement('div');
+        div.className = "log-event " + cls;
+        div.innerText = Match.timer + "' " + msg;
+        let box = document.getElementById('match-log');
+        box.prepend(div);
+    }
+    
+    function updateScoreboard() {
+        document.getElementById('score-home').innerText = Match.score.h;
+        document.getElementById('score-away').innerText = Match.score.a;
+        document.getElementById('match-time').innerText = Match.timer + ":00";
+    }
+
+    function endMatch() {
+        clearInterval(Match.interval);
+        Game.week++;
+        Game.energy -= 10;
+        
+        // Puan dağıtımı
+        let pts = Match.score.h > Match.score.a ? 3 : (Match.score.h == Match.score.a ? 1 : 0);
+        Game.league[0].p += pts;
+        
+        // Rakipleri simüle et
+        for(let i=1; i<Game.league.length; i++) Game.league[i].p += Math.floor(Math.random()*3);
+        
+        // Para kazanma
+        let earnings = (pts * 10) + 10;
+        Game.money += earnings;
+
+        alert(`MAÇ SONUCU: ${Match.score.h} - ${Match.score.a}\nKazanılan Para: $${earnings}`);
+        updateUI();
+        showScreen('screen-menu');
+    }
+
+    // --- 4. 3D ŞUT MOTORU (Kolaylaştırılmış) ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let W, H;
+    let Physics = { 
+        ball: {x:0, y:0, z:0, vx:0, vy:0, vz:0}, 
+        state: 'IDLE', // IDLE, AIM, MOVING
+        keeperX: 0 
+    };
+
+    function resizeCanvas() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeCanvas);
+
+    function open3DGame() {
+        resizeCanvas();
+        document.getElementById('game-layer').style.display = 'flex';
+        resetShot();
+        requestAnimationFrame(gameLoop3D);
+    }
+
+    function resetShot() {
+        Physics.ball = { x:0, y:150, z:0, vx:0, vy:0, vz:0 };
+        Physics.state = 'AIM';
+        Physics.keeperX = 0;
+        document.getElementById('shoot-msg').innerText = "HEDEF ALMAK İÇİN KAYDIR!";
+    }
+
+    // 3D -> 2D Dönüşüm (Basit Perspektif)
+    function project(x, y, z) {
+        let scale = 400 / (400 + z);
+        return {
+            x: (x * scale) + W/2,
+            y: (y * scale) + H/2,
+            s: scale
+        };
+    }
+
+    function gameLoop3D() {
+        if(document.getElementById('game-layer').style.display === 'none') return;
+
+        ctx.clearRect(0,0,W,H);
+        
+        // --- FİZİK ---
+        if(Physics.state === 'MOVING') {
+            Physics.ball.x += Physics.ball.vx;
+            Physics.ball.y += Physics.ball.vy;
+            Physics.ball.z += Physics.ball.vz;
+            
+            Physics.ball.vy += 0.5; // Yerçekimi
+            Physics.ball.vz *= 0.99; // Sürtünme
+
+            // Yer kontrolü
+            if(Physics.ball.y > 150) {
+                Physics.ball.y = 150; Physics.ball.vy *= -0.6;
+            }
+
+            // GOL KONTROLÜ (KALE = Genişlik 300, Yükseklik 120, Derinlik 600)
+            if(Physics.ball.z > 600) {
+                let inGoalX = Physics.ball.x > -150 && Physics.ball.x < 150;
+                let inGoalY = Physics.ball.y < 150 && Physics.ball.y > 30; // 150 yer, 30 üst direk
+                
+                // Kaleci Mesafesi
+                let keeperDist = Math.abs(Physics.ball.x - Physics.keeperX);
+                
+                if(inGoalX && inGoalY) {
+                    if(keeperDist < 40) { // Kurtardı
+                        close3DGame(false, "KALECİ KURTARDI!");
+                    } else { // GOL
+                        close3DGame(true, "GOOOOOOL!");
+                    }
+                } else {
+                    close3DGame(false, "AUT!");
+                }
+                return; // Döngüyü kes
+            }
+        }
+
+        // Kaleci Yapay Zekası
+        if(Physics.state === 'MOVING' && Physics.ball.z > 100) {
+            // Kaleci yavaşça topa gider (Zor değil)
+            Physics.keeperX += (Physics.ball.x - Physics.keeperX) * 0.05; 
+        }
+
+        // --- ÇİZİM ---
+        drawScene();
+        requestAnimationFrame(gameLoop3D);
+    }
+
+    function drawScene() {
+        // Zemin
+        ctx.fillStyle = "#228B22";
+        let groundPoly = [
+            project(-1000, 150, 0), project(1000, 150, 0),
+            project(1000, 150, 2000), project(-1000, 150, 2000)
+        ];
+        ctx.beginPath();
+        ctx.moveTo(groundPoly[0].x, groundPoly[0].y);
+        for(let p of groundPoly) ctx.lineTo(p.x, p.y);
+        ctx.fill();
+
+        // Kale (Genişlik 300 - KOLAY)
+        ctx.strokeStyle = "white"; ctx.lineWidth = 5;
+        let tl = project(-150, 30, 600); let tr = project(150, 30, 600);
+        let bl = project(-150, 150, 600); let br = project(150, 150, 600);
+        
+        ctx.beginPath(); 
+        ctx.moveTo(bl.x, bl.y); ctx.lineTo(tl.x, tl.y); 
+        ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); 
+        ctx.stroke();
+
+        // Ağlar
+        ctx.fillStyle = "rgba(255,255,255,0.2)";
+        ctx.fillRect(tl.x, tl.y, tr.x - tl.x, bl.y - tl.y);
+
+        // Kaleci
+        let kPos = project(Physics.keeperX, 150, 580);
+        let kH = 80 * kPos.s; let kW = 40 * kPos.s;
+        ctx.fillStyle = "red";
+        ctx.fillRect(kPos.x - kW/2, kPos.y - kH, kW, kH);
+
+        // Top
+        let bPos = project(Physics.ball.x, Physics.ball.y, Physics.ball.z);
+        let bSize = 12 * bPos.s;
+        ctx.fillStyle = "white"; ctx.beginPath();
+        ctx.arc(bPos.x, bPos.y, bSize, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle="black"; ctx.lineWidth=1; ctx.stroke();
+    }
+
+    function close3DGame(isGoal, msg) {
+        document.getElementById('shoot-msg').innerText = msg;
+        document.getElementById('shoot-msg').style.color = isGoal ? "#00ff00" : "red";
+        document.getElementById('shoot-msg').style.fontSize = "24px";
+        document.getElementById('shoot-msg').style.fontWeight = "bold";
+
+        setTimeout(() => {
+            document.getElementById('game-layer').style.display = 'none';
+            if(isGoal) {
+                Match.score.h++;
+                addLog("HARİKA BİR GOL!", "log-goal");
+                Game.star += 0.2;
+            } else {
+                addLog("Fırsat kaçtı...", "log-danger");
+            }
+            // Maç devam etsin
+            Match.interval = setInterval(matchLoop, 800);
+        }, 1500);
+    }
+
+    // --- SWIPE KONTROLÜ (GELİŞMİŞ) ---
+    let touchStart = {x:0, y:0};
+    
+    document.addEventListener('touchstart', e => {
+        touchStart.x = e.touches[0].clientX;
+        touchStart.y = e.touches[0].clientY;
+    });
+    
+    document.addEventListener('touchend', e => {
+        if(Physics.state !== 'AIM' || document.getElementById('game-layer').style.display === 'none') return;
+        
+        let dx = e.changedTouches[0].clientX - touchStart.x;
+        let dy = e.changedTouches[0].clientY - touchStart.y;
+        
+        // Yukarı doğru swipe yapıldı mı?
+        if(dy < -30) {
+            Physics.state = 'MOVING';
+            let speed = 25 * Game.bootsLevel; 
+            
+            // X Hızı: Sağa sola kaydırma miktarı
+            Physics.ball.vx = dx * 0.15; 
+            
+            // Y Hızı: Yukarı kaydırma (Negatif değer yukarıdır)
+            Physics.ball.vy = dy * 0.3; 
+            
+            // Z Hızı: İleri gidiş (Sabit hızlı)
+            Physics.ball.vz = speed;
+
+            document.getElementById('shoot-msg').innerText = "";
+        }
+    });
+
+    // PC için Mouse Desteği
+    document.addEventListener('mousedown', e => { touchStart.x = e.clientX; touchStart.y = e.clientY; });
+    document.addEventListener('mouseup', e => {
+        if(Physics.state !== 'AIM' || document.getElementById('game-layer').style.display === 'none') return;
+        let dx = e.clientX - touchStart.x; let dy = e.clientY - touchStart.y;
+        if(dy < -30) {
+            Physics.state = 'MOVING';
+            let speed = 25 * Game.bootsLevel;
+            Physics.ball.vx = dx * 0.15; Physics.ball.vy = dy * 0.3; Physics.ball.vz = speed;
+        }
+    });
+
+    // Başlangıç
+    updateUI();
+
+</script>
+</body>
+</html>
         flex-direction: column;
         justify-content: space-between;
     }
